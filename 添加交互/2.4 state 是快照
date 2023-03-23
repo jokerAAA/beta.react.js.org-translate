@@ -1,0 +1,240 @@
+# state 是快照
+
+state或许和其他常规的 javascript变量看起来很像，但是它的实际表现更像快照。设置它的值并不会修改你已经存在的变量，而是会触发再次渲染；
+
+> 你将学到: 
+> - 设置 state 时如何触发再次渲染的
+> - state 更新的时间和过程
+> - 当你设置 state 时为什么 state 没有马上更新
+> - 事件处理函数时怎么获取到 state 快照的
+
+## 设置 state 触发渲染
+
+你或许认为你的用户界面会马上响应用户事件比如点击，在 React 中，它的工作原理和这个心智模型有区别的。在之前的章节中，你了解到设置 state 会触发一次重新渲染，这以为当你需要响应事件时，你需要更新 state。  
+下面的例子中，当你点击 send，setIsSent(true) 告诉 React 重新渲染 UI
+
+```javascript
+import { useState } from 'react'
+
+export default function Form() {
+	const [isSent, setIsSent] = useState(false);
+	const [message, setMessage] = useState('hi');
+	if (isSent) {
+		return <h1>your message on its way !</h1>
+	}
+	return (
+		<form onSubmit={(e) => {
+			e.preventDefault();
+			setIsSent(true);
+			sendMessage(message);
+		}>
+			<textarea placeholder="message" value={message} onChange={() =>{setMessage(e.target.value)}}></textarea>
+			<button type="submit">send</button>
+		</form>
+	)
+}
+
+function sendMessage() {
+}
+```
+
+当你点击按钮时会发生：
+
+1. 执行 onSubmit 事件处理函数
+2.setIsSent(true)，将 isSent 设置为 true，并触发再次渲染
+3. React 根据 isSent 的新值再次渲染组件
+
+让我们近距离看一下 state 和 rendering 的关系.
+
+## 渲染取的是快照
+
+渲染意味着 React 正在调用你的组件，它是一个函数。你从该函数中返回的 JSX 就像是 UI 在确定时间点上的快照。它的 props、事件处理函数和局部变量都是在用它渲染时的状态计算出来的。  
+
+和照片或电影帧不同的是，你返回的 UI 快照是可交互的，它包含了诸如响应用户输入等事件处理程序，然后 React 更新屏幕显示以匹配这个快照并连接用户事件处理程序。因此，点击按钮会触发你的 JSX 中的事件处理程序。 
+
+当 React 再次渲染一个组件:
+
+1. React 再次调用你的函数
+2. 你的函数返回一个新的 JSX 快照
+3. React 更新屏幕显示以匹配你返回的快照
+
+TODO: 下面翻译有点问题，需要再次修订  
+
+作为组件的记忆，和其他常规变量不同的点在于 state 不会在函数返回后消失，而是存在于 React 本身(就像在一个架子上)，在你的函数之外。当 React 调用你的组件时，会为这次渲染提供一个 state 快照，你的组件会返回一个新的 UI 快照，具有新的 props 和 事件处理函数的 JSX,而这些都是根据 state 快照计算得出的
+
+下面是个展示工作的原理的小实验，在这个例子中，你获取期望点击 +3 的按钮时，count 会被增加三次，因为调用了3次 setNumber(number + 1);
+
+```javascript
+import {useState} from 'react'
+export default function Counter() {
+	const [number, setNumber] = useState(0);
+	return (
+		<>
+			<h1>{number}</h1>
+			<button onClick={() => {
+				setNumber(number + 1);
+				setNumber(number + 1)；
+				setNumber(number + 1);
+			}}>+3</button>
+		</>
+	)
+	
+}
+```
+
+请注意，每次点击时 number 只递增一次！  
+setting state 只会在下一个 render 时修改它，在首次渲染时，number 的值是 0.这就是为什么在这次渲染的 onClick 函数中，即使调用了 setNumber(number + 1)时，number 的值仍然是 0。
+
+```
+<button onClick={() => {
+	setNumber(number + 1);
+	setNumber(number + 1)；
+	setNumber(number + 1);
+}}>+3</button>
+```
+
+下面是这个按钮的事件处理函数告诉 React 要做的事:
+
+1. setNumber(number + 1): number 是 0，所以 setNumber(0 + 1);
+  - React 准备在下一次渲染中将 number 改为 1
+2. setNumber(number + 1): number 是 0，所以 setNumber(0 + 1);
+  - React 准备在下一次渲染中将 number 改为 1
+3. setNumber(number + 1): number 是 0，所以 setNumber(0 + 1);
+  - React 准备在下一次渲染中将 number 改为 1
+  
+即使你调用了三次 setNumber(number + 1),在这次渲染的事件回调中，number 始终是0，所以你把 state 设置为 1 了三次。这就是为什么当你的事件处理函数结束后，React 重新渲染的组件中的 number 是 1 而不是 3
+
+你也可以通过在代码中用 state 变量的值来代替 state 变量的方式来直观的看到这一点，由于这次渲染过程中 state 变量的值是0， 在事件处理程序中代码看起来是这样的：
+
+```javascript
+<button onClick={() => {
+	setNumber(0 + 1);
+	setNumber(0 + 1);
+	setNumber(0 + 1);
+}}></button>
+```
+
+在下一个渲染时，number 为1，所以这次渲染的事件处理程序看起来是这样的:
+
+```javascript
+<button onClick={() => {
+	setNumber(1 + 1);
+	setNumber(1 + 1);
+	setNumber(1 + 1);
+}}></button>
+```
+
+这就是为什么再次点击按钮的时候，counter会变成2，下次变成3
+
+## state 随时间变化
+
+试着猜猜看点击这个按钮会弹出什么:
+
+```javascript
+import {useState} from 'react'
+export default function Counter() {
+	const [number, setNumber]= useState(0);
+	return (
+		<>
+			<h1>{number}</h1>
+			<button onClick={() => {
+				setNumber(numer + 5);
+				alert(number);
+			}}>+5</button>
+		</>
+	)
+}
+```
+
+如果你用了之前的变量替换法，你或许会猜到弹出的是 0；
+
+```javascript
+setNumber(0 + 5);
+alert(0)
+```
+
+但是，如果你为 alert 添加一个定时器时，当它被再次渲染后才调用呢？结果是 0 还是 5呢
+
+```javascript
+import { userState } from 'react'
+
+export default function Counter() {
+	const [number, setNumber] = useState(0);
+	
+	return (
+		<>
+			<h1>{number}</h1>
+			<button onClick={() => {
+				setNumber(number + 5);
+				setTimeout(() => {
+					alert(number)
+				},3000)
+			
+			}}></button>
+		</>
+	)
+}
+```
+
+意外吗？如果你使用替换法，你会发现 state 的快照被传递给了 alert；
+
+```javascript
+setNumber(0 + 5);
+setTimeout(() => {
+	alert(0)
+}, 3000) 
+```
+
+React 存储的 state 在 alert 运行时或许已经发生了变化，但它是使用用户和它互动时的快照来 schedule的  
+
+一个 state 变量的值在一次渲染的过程中永远不会改变，即使它的事件处理函数是异步的。在上面的渲染中的 onClick 中，number 的值即使在 setNumber(5) 被调用后也始终是0。当 React 通过调用你的组件时获取了UI快照时，state的值是固定的.  
+
+这里有个例子用于说明着如何是你的事件处理函数不容易发生事件错误。下面是一个延迟五秒提交的表单，想象在这个场景下:
+
+1. 你点击 send 按钮，发送 hello 给 Alice
+2. 在 5s 结束前，你修改了发送人为 Bob
+
+你期望 alert 显示的是什么？
+
+```javascript
+import { useState } from 'react'
+
+export default function Form() {
+	const [to, setTo] = useState('Alice');
+	const [message, setMessage] = useState('hello');
+	
+	function handleSubmit(e) {
+		e.preventDefault();
+		setTimeout(() => {
+			alert(`You said ${message} to ${to}`);
+		}, 5000);
+	}
+	
+	return (
+		<form onSubmit={handleSubmit}>
+			<label>To: {''}</label>
+			<select value={to} onChange={e => setTo(e.target.value)}>
+				<option value="Alice">Alice</option>
+				<option value="Bob">Bob</option>
+			</select>
+			
+			<textarea value={message} onChange={() => setMessage(e.target.value)}></textarea>
+			<button type="submit">send</button>
+		</form>
+	)
+}
+```
+
+React 在单次渲染的事件处理程序中保持了 state 的值是固定的，你不必担心代码在运行时 state 是否发生了变化。  
+
+但是如果你想在重新渲染之前读取最近一次的状态呢？你将需要使用状态更新函数，在下一页中介绍.  
+
+## 回顾
+
+- 设置 state  会触发一次新的渲染
+- React 在你的组件之外存储state，就像放在一个书架上
+- 当你调用 useState 是，React会给你一个该渲染的 state 快照
+- 变量和事件处理程序在重复渲染中是不同的，每次渲染都有自己的事件处理函数
+- 每次渲染都将之中看到 React 给该次渲染的 state 快照
+- 你可以在事件处理程序中用替代法，类似于你对已经渲染的 JSX 的理解
+- 每个 render 中创建的事件处理函数都拥有当次渲染的 state 值
